@@ -69,9 +69,7 @@ const Navbar = () => {
           className="flex items-center gap-2"
           whileHover={{ scale: 1.05 }}
         >
-          <div className="w-8 h-8 bg-accent rounded-md flex items-center justify-center">
-            <span className="text-primary font-bold text-sm">BD</span>
-          </div>
+          <img src="/logo.png" alt="Bilge Detection Logo" className="h-10 w-auto object-contain" />
           <span className="text-foreground font-bold hidden sm:inline">
             Bilge Detection
           </span>
