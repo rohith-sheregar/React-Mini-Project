@@ -1,4 +1,5 @@
 import HeroSection from '../sections/HeroSection';
+import ScrollyStory from '../scenes/ScrollyStory';
 import OverviewSection from '../sections/OverviewSection';
 import PipelineSection from '../sections/PipelineSection';
 import ResultsSection from '../sections/ResultsSection';
@@ -17,6 +18,7 @@ export default function Home() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <HeroSection />
+      <ScrollyStory />
       <OverviewSection />
       <PipelineSection />
       <ResultsSection />

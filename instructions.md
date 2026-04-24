@@ -40,6 +40,7 @@ This installs everything listed in `pnpm-lock.yaml`, including:
 - Framer Motion
 - Radix UI components
 - Lucide React icons
+- **GSAP + ScrollTrigger** (animation library for the scrollytelling feature)
 - and 300+ other packages
 
 ---
@@ -51,6 +52,36 @@ pnpm add -D @tailwindcss/vite
 ```
 
 > ⚠️ This is a **required one-time step**. Tailwind CSS v4 uses its own Vite plugin instead of PostCSS. Without this, the site will load with **zero styling** (plain white page with no layout or colors).
+
+---
+
+### Step 4.5 — Install GSAP (Scroll Animation Library)
+
+```bash
+pnpm add gsap
+```
+
+> ⚠️ This is **required** for the cinematic scrollytelling section to work. GSAP's `ScrollTrigger` plugin powers the 1500vh frame-scrubbing animation between the Hero and Overview sections. Without it, the scroll section will be blank.
+
+**What it powers:**
+- `src/scenes/ScrollyStory.jsx` — the cinematic 3-scene scroll experience
+- Frame-by-frame scrubbing of 192 JPG frames across 3 scenes (scene1, scene2, scene3)
+- Text beat animations with clip-path wipe reveals
+- Letterbox bars, film grain, and a scene progress indicator
+
+**Frame assets required:**
+
+The frames are **not committed to Git** (too large). After cloning, place your frame folders here:
+
+```
+public/
+└── frames/
+    ├── scene1/   ← 00001.jpg to 00192.jpg  (oil tanker at night)
+    ├── scene2/   ← 00001.jpg to 00192.jpg  (Sentinel-1 SAR satellite)
+    └── scene3/   ← 00001.jpg to 00192.jpg  (maritime control room)
+```
+
+> Files must be **5-digit zero-padded** `.jpg` format: `00001.jpg`, `00002.jpg` … `00192.jpg`
 
 ---
 
@@ -72,6 +103,7 @@ Open your browser and visit: **http://localhost:5173**
 | 2 | `npm install -g pnpm` | Install the pnpm package manager globally |
 | 3 | `pnpm install` | Install all project dependencies |
 | 4 | `pnpm add -D @tailwindcss/vite` | Install Tailwind v4 Vite plugin (styling) |
+| 4.5 | `pnpm add gsap` | Install GSAP for scrollytelling animations |
 | 5 | `pnpm run dev` | Start the local dev server |
 
 ---
@@ -108,6 +140,9 @@ pnpm run format
 React-Mini-Project/
 ├── src/
 │   ├── components/       # Reusable UI components (Navbar, ScrollReveal, etc.)
+│   ├── scenes/           # Cinematic scroll scenes
+│   │   ├── ScrollyStory.jsx        # 3-scene GSAP scrollytelling component
+│   │   └── ScrollyStory.module.css # Scoped styles (letterbox, grain, beats)
 │   ├── sections/         # Page sections (Hero, Overview, Pipeline, Results, Team, Contact)
 │   ├── pages/            # Page components (Home, NotFound)
 │   ├── contexts/         # React contexts (ThemeContext)
@@ -116,9 +151,13 @@ React-Mini-Project/
 │   ├── App.tsx           # Root application component
 │   ├── main.tsx          # Entry point
 │   └── index.css         # Global styles (Tailwind v4 + custom tokens)
+├── public/
+│   └── frames/           # ⚠️ NOT in Git — add manually after clone
+│       ├── scene1/       # 00001.jpg … 00192.jpg
+│       ├── scene2/       # 00001.jpg … 00192.jpg
+│       └── scene3/       # 00001.jpg … 00192.jpg
 ├── shared/               # Shared constants between frontend and server
 ├── server/               # Express backend (optional, for future API use)
-├── public/               # Static assets
 ├── index.html            # HTML entry point
 ├── vite.config.ts        # Vite + Tailwind plugin configuration
 ├── tsconfig.json         # TypeScript configuration
@@ -132,3 +171,5 @@ React-Mini-Project/
 - The `node_modules/` folder is **not committed to Git** — always run `pnpm install` after cloning.
 - Always use `pnpm` for adding/removing packages (not `npm` or `yarn`).
 - The project uses **Tailwind CSS v4** which is CSS-first and does not require a `tailwind.config.js` or `postcss.config.js`.
+- **GSAP** (`gsap` package) must be installed separately with `pnpm add gsap` — it is not part of the base lockfile.
+- The **frame assets** (`public/frames/`) are not tracked in Git due to size. They must be copied manually after each fresh clone.
