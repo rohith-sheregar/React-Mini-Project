@@ -65,23 +65,29 @@ export default function ThreeLoader({ onLoadComplete, minDisplayTime = 3000 }: T
   const [isFading, setIsFading] = useState(false);
 
   useEffect(() => {
-    // Fake progress for the thematic effect, but ensures it displays for a minimum time
-    const startTime = Date.now();
-    const interval = setInterval(() => {
-      const elapsed = Date.now() - startTime;
+    // Use rAF for a perfectly smooth, constant-speed linear fill at ~60fps
+    const startTime = performance.now();
+    let rafId: number;
+    let completed = false;
+
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
       const pct = Math.min((elapsed / minDisplayTime) * 100, 100);
       setProgress(pct);
 
-      if (pct >= 100) {
-        clearInterval(interval);
+      if (pct < 100) {
+        rafId = requestAnimationFrame(tick);
+      } else if (!completed) {
+        completed = true;
         setIsFading(true);
         setTimeout(() => {
           if (onLoadComplete) onLoadComplete();
-        }, 800); // Wait for fade out CSS transition
+        }, 800);
       }
-    }, 50);
+    };
 
-    return () => clearInterval(interval);
+    rafId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafId);
   }, [minDisplayTime, onLoadComplete]);
 
   return (

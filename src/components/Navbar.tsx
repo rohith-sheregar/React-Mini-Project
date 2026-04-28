@@ -66,11 +66,17 @@ const Navbar = () => {
       <div className="container mx-auto px-4 py-4 flex items-center justify-between">
         {/* Logo */}
         <motion.div
-          className="flex items-center gap-2"
+          className="flex items-center gap-3"
           whileHover={{ scale: 1.05 }}
         >
-          <img src="/logo.png" alt="Bilge Detection Logo" className="h-10 w-auto object-contain" />
-          <span className="text-foreground font-bold hidden sm:inline">
+          <div className="relative flex items-center justify-center h-10 w-10 rounded-full overflow-hidden bg-white/5 border border-white/10 shadow-[0_0_15px_rgba(0,212,168,0.15)]">
+            <img
+              src="/logo.png"
+              alt="Bilge Detection Logo"
+              className="h-20 max-w-none object-contain"
+            />
+          </div>
+          <span className="text-foreground font-bold hidden sm:inline tracking-wide">
             Bilge Detection
           </span>
         </motion.div>
