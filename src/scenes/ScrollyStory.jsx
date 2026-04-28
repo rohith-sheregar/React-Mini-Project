@@ -5,32 +5,23 @@ import styles from './ScrollyStory.module.css';
 
 gsap.registerPlugin(ScrollTrigger);
 
-const TOTAL_FRAMES = 192;
+const TOTAL_FRAMES = 190;
 const SCENES       = ['scene1', 'scene2', 'scene3'];
 const SCENE_COUNT  = 3;
-const VH_PER_SCENE = 500;   // ← slow, deliberate scroll
 
-/*
-  Each beat: { start, end, label, lines:[{text,cls}], enter, align, vpos }
-  cls = 'hero' (large) | 'sub' (small supporting)
-  enter = direction the lines slide in from
-*/
 const BEATS = [
-  // ── Scene 1 ──────────────────────────────────────────────
   [
     {
-      start: 0.0, end: 0.30,
-      label: 'THE CRISIS',
+      start: 0.0, end: 0.28, label: 'THE CRISIS',
       lines: [
-        { text: '600 million',          cls: 'hero' },
-        { text: 'litres of oil.',       cls: 'hero' },
+        { text: '600 million',    cls: 'hero' },
+        { text: 'litres of oil.', cls: 'hero' },
         { text: 'Dumped illegally into our oceans — every year.', cls: 'sub' },
       ],
       enter: 'bottom', align: 'left', vpos: 'bottom',
     },
     {
-      start: 0.68, end: 1.0,
-      label: 'INVISIBLE',
+      start: 0.70, end: 1.0, label: 'INVISIBLE',
       lines: [
         { text: 'Hidden beneath',  cls: 'hero' },
         { text: 'the surface.',    cls: 'hero' },
@@ -39,11 +30,9 @@ const BEATS = [
       enter: 'right', align: 'right', vpos: 'center',
     },
   ],
-  // ── Scene 2 ──────────────────────────────────────────────
   [
     {
-      start: 0.0, end: 0.30,
-      label: 'ESA SENTINEL-1 SAR',
+      start: 0.0, end: 0.28, label: 'ESA SENTINEL-1 SAR',
       lines: [
         { text: 'Sees through',      cls: 'hero' },
         { text: 'night and storms.', cls: 'hero' },
@@ -52,8 +41,7 @@ const BEATS = [
       enter: 'top', align: 'center', vpos: 'top',
     },
     {
-      start: 0.68, end: 1.0,
-      label: 'GLOBAL SURVEILLANCE',
+      start: 0.70, end: 1.0, label: 'GLOBAL SURVEILLANCE',
       lines: [
         { text: 'Every sea.',    cls: 'hero' },
         { text: 'Every 6 days.', cls: 'hero' },
@@ -62,11 +50,9 @@ const BEATS = [
       enter: 'left', align: 'left', vpos: 'center',
     },
   ],
-  // ── Scene 3 ──────────────────────────────────────────────
   [
     {
-      start: 0.0, end: 0.30,
-      label: 'AIS CROSS-REFERENCE',
+      start: 0.0, end: 0.28, label: 'AIS CROSS-REFERENCE',
       lines: [
         { text: 'The exact ship.',  cls: 'hero' },
         { text: 'The exact time.', cls: 'hero' },
@@ -75,8 +61,7 @@ const BEATS = [
       enter: 'bottom', align: 'center', vpos: 'bottom',
     },
     {
-      start: 0.68, end: 1.0,
-      label: '⚡  ALERT DISPATCHED',
+      start: 0.70, end: 1.0, label: '⚡ ALERT DISPATCHED',
       lines: [
         { text: 'Automated.',   cls: 'hero' },
         { text: 'Irrefutable.', cls: 'hero' },
@@ -87,72 +72,109 @@ const BEATS = [
   ],
 ];
 
-function buildFrameUrls(folder) {
+function buildUrls(folder) {
   return Array.from({ length: TOTAL_FRAMES }, (_, i) => {
-    const n = String(i + 1).padStart(5, '0');
-    return `/frames/${folder}/${n}.jpg`;
+    const n = String(i + 1).padStart(3, '0');
+    return `/frames/${folder}/frame_${n}.jpg`;
   });
 }
 
-function usePreload(urls, enabled) {
-  const [progress, setProgress] = useState(0);
-  const [done,     setDone]     = useState(false);
-  useEffect(() => {
-    if (!enabled) return;
-    let loaded = 0;
-    const imgs = urls.map(src => {
-      const img = new Image();
-      img.onload = img.onerror = () => {
-        loaded++;
-        setProgress(loaded / urls.length);
-        if (loaded === urls.length) setDone(true);
-      };
-      img.src = src;
-      return img;
-    });
-    return () => imgs.forEach(img => { img.onload = null; img.onerror = null; });
-  }, [enabled]); // eslint-disable-line
-  return { progress, done };
+// ── Pre-create Image objects (one per frame, per scene) ──────────────────────
+// Sets .src immediately so the browser starts fetching and caching.
+// When the user scrolls, we just read from this array — no allocation,
+// no creation, just a cache lookup.  If img.complete === true the draw
+// is instant from browser memory; otherwise we keep the previous frame.
+function buildImagePool(urls) {
+  return urls.map(url => {
+    const img = new Image();
+    img.src   = url;           // triggers fetch + HTTP-cache population
+    return img;
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 export default function ScrollyStory() {
   const scrollSpaceRef = useRef(null);
-  const imgRef         = useRef(null);
+  const canvasRef      = useRef(null);
   const beatRef        = useRef(null);
   const accentRef      = useRef(null);
   const linesContRef   = useRef(null);
   const sceneNumRef    = useRef(null);
   const progressBarRef = useRef(null);
+  const rafRef         = useRef(null);   // pending rAF id
+  const pendingRef     = useRef(null);   // { scene, fi } we want to draw next
 
-  const frameUrls = useMemo(() => SCENES.map(buildFrameUrls), []);
+  const allUrls  = useMemo(() => SCENES.map(buildUrls), []);
 
-  const [preEnabled, setPreEnabled] = useState([true, false, false]);
-  const preEnabledRef  = useRef([true, false, false]);
-  const sceneReadyRef  = useRef([false, false, false]);
-  const loadingIdxRef  = useRef(0);
+  // Pool[sceneIdx][frameIdx] = HTMLImageElement (already fetching)
+  const pool = useRef(null);
 
+  // Loader state: count how many scene-0 images are loaded
   const [loaderPct, setLoaderPct] = useState(0);
 
-  const pre0 = usePreload(frameUrls[0], preEnabled[0]);
-  const pre1 = usePreload(frameUrls[1], preEnabled[1]);
-  const pre2 = usePreload(frameUrls[2], preEnabled[2]);
-  const pres = [pre0, pre1, pre2];
-
+  // ── Build pools & track scene-0 load progress ─────────────────────────
   useEffect(() => {
-    pres.forEach(({ done }, i) => {
-      if (done && !sceneReadyRef.current[i]) sceneReadyRef.current[i] = true;
+    pool.current = allUrls.map(urls => buildImagePool(urls));
+
+    // Count scene 0 loads for the progress bar
+    let loaded = 0;
+    pool.current[0].forEach(img => {
+      if (img.complete) {
+        loaded++;
+        setLoaderPct(Math.round((loaded / TOTAL_FRAMES) * 100));
+        if (loaded === 1) drawFrame(0, 0); // draw first frame immediately
+      } else {
+        img.addEventListener('load', () => {
+          loaded++;
+          setLoaderPct(Math.round((loaded / TOTAL_FRAMES) * 100));
+          if (loaded === 1) drawFrame(0, 0); // draw first frame as soon as it arrives
+        }, { once: true });
+      }
     });
-  }, [pre0.done, pre1.done, pre2.done]); // eslint-disable-line
 
+    return () => { pool.current = null; };
+  }, []); // eslint-disable-line
+
+  // ── Canvas cover-fit draw ────────────────────────────────────────────────
+  const drawFrame = useCallback((sceneIdx, fi) => {
+    const canvas = canvasRef.current;
+    if (!canvas || !pool.current) return;
+    const img = pool.current[sceneIdx]?.[fi];
+    if (!img?.complete || !img.naturalWidth) return;   // not ready, keep old frame
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Cover-fit: scale image to fill canvas maintaining aspect ratio
+    const cw    = canvas.width;
+    const ch    = canvas.height;
+    const scale = Math.max(cw / img.naturalWidth, ch / img.naturalHeight);
+    const dw    = img.naturalWidth  * scale;
+    const dh    = img.naturalHeight * scale;
+    const dx    = (cw - dw) / 2;
+    const dy    = (ch - dh) / 2;
+
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.drawImage(img, dx, dy, dw, dh);
+  }, []);
+
+  // ── Resize canvas, redraw current frame ──────────────────────────────────
   useEffect(() => {
-    const idx = loadingIdxRef.current;
-    const { progress, done } = pres[idx];
-    setLoaderPct(done ? 100 : Math.round(progress * 100));
-  }, [pre0.progress, pre1.progress, pre2.progress]); // eslint-disable-line
+    const resize = () => {
+      if (!canvasRef.current) return;
+      canvasRef.current.width  = window.innerWidth;
+      canvasRef.current.height = window.innerHeight;
+      if (pendingRef.current) {
+        drawFrame(pendingRef.current.scene, pendingRef.current.fi);
+      }
+    };
+    resize();
+    window.addEventListener('resize', resize);
+    return () => window.removeEventListener('resize', resize);
+  }, [drawFrame]);
 
-  // ── active beat tracking ──────────────────────────────────
-  const activeBeatKey = useRef('');  // `${sceneIdx}-${beatIdx}`
+  // ── Beat text ────────────────────────────────────────────────────────────
+  const activeBeatKey = useRef('');
   const lineEls       = useRef([]);
 
   const clearBeat = useCallback((onDone) => {
@@ -160,73 +182,45 @@ export default function ScrollyStory() {
     if (!els.length) { onDone?.(); return; }
     els.forEach((el, i) => {
       gsap.to(el, {
-        clipPath: 'inset(0 0 100% 0)',
-        opacity: 0,
-        duration: 0.3,
-        ease: 'power2.in',
-        delay: i * 0.03,
+        clipPath: 'inset(0 0 100% 0)', opacity: 0, filter: 'blur(8px)',
+        duration: 0.35, ease: 'power2.inOut', delay: i * 0.04,
         onComplete: i === els.length - 1 ? onDone : undefined,
       });
     });
-    if (accentRef.current) gsap.to(accentRef.current, { opacity: 0, duration: 0.2 });
+    if (accentRef.current) gsap.to(accentRef.current, { opacity: 0, filter: 'blur(4px)', duration: 0.25 });
   }, []);
 
   const revealBeat = useCallback((beat) => {
     const container = linesContRef.current;
     if (!container) return;
-
-    // Set alignment
     if (beatRef.current) {
       beatRef.current.dataset.align = beat.align;
       beatRef.current.dataset.vpos  = beat.vpos;
       beatRef.current.style.opacity = '1';
     }
-
-    // Accent
     if (accentRef.current) {
       accentRef.current.textContent = beat.label;
       gsap.fromTo(accentRef.current,
-        { opacity: 0, y: 6 },
-        { opacity: 1, y: 0, duration: 0.5, ease: 'power2.out', delay: 0.05 }
-      );
+        { opacity: 0, y: 10, filter: 'blur(5px)' },
+        { opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.6, ease: 'power3.out', delay: 0.1 });
     }
-
-    // Build line elements
     container.innerHTML = '';
     lineEls.current = [];
-
-    const getOffset = (enter) => {
-      switch (enter) {
-        case 'top':    return { y: -28, x: 0 };
-        case 'left':   return { x: -40, y: 0 };
-        case 'right':  return { x: 40,  y: 0 };
-        default:       return { y: 28,  x: 0 };   // bottom
-      }
-    };
-    const off = getOffset(beat.enter);
-
+    const offsets = { top: { y: -40, x: 0 }, left: { x: -60, y: 0 }, right: { x: 60, y: 0 }, bottom: { y: 40, x: 0 } };
+    const off = offsets[beat.enter] ?? offsets.bottom;
     beat.lines.forEach((line, i) => {
       const wrap = document.createElement('div');
       wrap.className = styles.lineWrap;
-
       const el = document.createElement('span');
-      el.className = line.cls === 'hero' ? styles.lineHero : styles.lineSub;
+      el.className  = line.cls === 'hero' ? styles.lineHero : styles.lineSub;
       el.textContent = line.text;
-
       wrap.appendChild(el);
       container.appendChild(wrap);
       lineEls.current.push(wrap);
-
       gsap.fromTo(wrap,
-        { clipPath: 'inset(0 0 100% 0)', ...off },
-        {
-          clipPath: 'inset(0 0 0% 0)',
-          x: 0, y: 0,
-          duration: line.cls === 'hero' ? 0.75 : 0.55,
-          ease: 'power3.out',
-          delay: 0.1 + i * 0.13,
-        }
-      );
+        { clipPath: 'inset(0 0 100% 0)', filter: 'blur(8px)', scale: 0.96, ...off },
+        { clipPath: 'inset(0 0 0% 0)', filter: 'blur(0px)', scale: 1, x: 0, y: 0,
+          duration: line.cls === 'hero' ? 0.9 : 0.7, ease: 'expo.out', delay: 0.15 + i * 0.1 });
     });
   }, []);
 
@@ -238,103 +232,68 @@ export default function ScrollyStory() {
     }
     const key = `${sceneIdx}-${targetIdx}`;
     if (key === activeBeatKey.current) return;
-
     const prevKey = activeBeatKey.current;
     activeBeatKey.current = key;
-
     const doReveal = () => {
       if (targetIdx === -1) {
         if (beatRef.current) beatRef.current.style.opacity = '0';
         lineEls.current = [];
-        return;
+      } else {
+        revealBeat(beats[targetIdx]);
       }
-      revealBeat(beats[targetIdx]);
     };
-
-    // If changing to a different beat, clear first
-    if (prevKey !== '' && prevKey !== `${sceneIdx}--1`) {
-      clearBeat(doReveal);
-    } else {
-      doReveal();
-    }
+    if (prevKey !== '' && prevKey !== `${sceneIdx}--1`) clearBeat(doReveal);
+    else doReveal();
   }, [revealBeat, clearBeat]);
 
-  // ── mount: set first frame ──────────────────────────────────
-  useEffect(() => {
-    if (imgRef.current) imgRef.current.src = frameUrls[0][0];
-  }, []); // eslint-disable-line
-
-  // ── ScrollTrigger ───────────────────────────────────────────
+  // ── ScrollTrigger ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!scrollSpaceRef.current) return;
 
     const st = ScrollTrigger.create({
       trigger: scrollSpaceRef.current,
-      start: 'top top',
-      end:   'bottom bottom',
-      scrub: 1.8,
+      start:   'top top',
+      end:     'bottom bottom',
+      scrub:   0.8,    // slight lag smooths micro-jitter without feeling sticky
       onUpdate(self) {
-        const overall   = self.progress;
-        const rawScene  = overall * SCENE_COUNT;
-        const sceneIdx  = Math.min(SCENE_COUNT - 1, Math.floor(rawScene));
-        const scenePct  = rawScene - sceneIdx;
+        const overall  = self.progress;
+        const rawScene = overall * SCENE_COUNT;
+        const sceneIdx = Math.min(SCENE_COUNT - 1, Math.floor(rawScene));
+        const scenePct = Math.min(1, rawScene - sceneIdx);
+        const fi       = Math.min(TOTAL_FRAMES - 1, Math.max(0, Math.round(scenePct * (TOTAL_FRAMES - 1))));
 
-        // Frame scrub
-        if (sceneReadyRef.current[sceneIdx] && imgRef.current) {
-          const fi  = Math.min(TOTAL_FRAMES, Math.max(1, Math.round(scenePct * (TOTAL_FRAMES - 1)) + 1));
-          const url = frameUrls[sceneIdx][fi - 1];
-          if (imgRef.current.dataset.u !== url) {
-            imgRef.current.dataset.u = url;
-            imgRef.current.src       = url;
-          }
-        }
+        // Store target for rAF — fast scroll just overwrites this before drawing
+        pendingRef.current = { scene: sceneIdx, fi };
 
-        // Scene counter
-        if (sceneNumRef.current) {
-          sceneNumRef.current.textContent = `0${sceneIdx + 1} / 0${SCENE_COUNT}`;
-        }
+        // Cancel any queued draw from previous tick, schedule fresh one
+        if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        rafRef.current = requestAnimationFrame(() => {
+          const p = pendingRef.current;
+          if (p) drawFrame(p.scene, p.fi);
+        });
 
-        // Side progress bar
-        if (progressBarRef.current) {
-          progressBarRef.current.style.height = `${Math.round(overall * 100)}%`;
-        }
-
-        // Text beats
+        // UI updates (cheap, run immediately outside rAF)
+        if (sceneNumRef.current)    sceneNumRef.current.textContent = `0${sceneIdx + 1} / 0${SCENE_COUNT}`;
+        if (progressBarRef.current) progressBarRef.current.style.height = `${Math.round(overall * 100)}%`;
         updateBeat(sceneIdx, scenePct);
-
-        // Preload next scene early
-        if (scenePct > 0.70 && sceneIdx < SCENE_COUNT - 1) {
-          const next = sceneIdx + 1;
-          if (!preEnabledRef.current[next]) {
-            preEnabledRef.current[next] = true;
-            loadingIdxRef.current = next;
-            setPreEnabled([...preEnabledRef.current]);
-          }
-        }
       },
     });
 
-    return () => st.kill();
-  }, [frameUrls, updateBeat]); // eslint-disable-line
+    return () => {
+      st.kill();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, [drawFrame, updateBeat]); // eslint-disable-line
 
   return (
     <div className={styles.wrapper}>
-
-      {/* ── 1500vh scroll space with CSS-sticky frame ── */}
       <div ref={scrollSpaceRef} className={styles.scrollSpace}>
-
-        {/* Letterbox + film frame */}
         <div className={styles.sticky}>
 
-          <img ref={imgRef} className={styles.frame} alt="" draggable={false} />
+          <canvas ref={canvasRef} className={styles.frame} />
 
-          {/* Cinematic overlays */}
-          <div className={styles.letterboxTop}    aria-hidden="true" />
-          <div className={styles.letterboxBottom} aria-hidden="true" />
-          <div className={styles.vignette}        aria-hidden="true" />
-          <div className={styles.grain}           aria-hidden="true" />
+          <div className={styles.vignette} aria-hidden="true" />
 
-          {/* Scene counter top-right */}
           <div className={styles.sceneCounter}>
             <span ref={sceneNumRef} className={styles.sceneNum}>01 / 03</span>
             <div  className={styles.sceneTrack}>
@@ -342,17 +301,11 @@ export default function ScrollyStory() {
             </div>
           </div>
 
-          {/* Beat text */}
-          <div
-            ref={beatRef}
-            className={styles.beat}
-            style={{ opacity: 0 }}
-          >
-            <span ref={accentRef} className={styles.beatLabel} />
+          <div ref={beatRef} className={styles.beat} style={{ opacity: 0 }}>
+            <span ref={accentRef}    className={styles.beatLabel} />
             <div  ref={linesContRef} className={styles.linesContainer} />
           </div>
 
-          {/* Loader bar */}
           {loaderPct < 100 && (
             <div className={styles.loader} style={{ width: `${loaderPct}%` }} aria-hidden="true" />
           )}

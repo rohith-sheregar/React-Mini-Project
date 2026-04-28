@@ -1,10 +1,11 @@
-import { Component, type ReactNode } from "react";
+import { Component, type ReactNode, useState } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Navbar from "./components/Navbar";
 import ScrollProgressBar from "./components/ScrollProgressBar";
 import Home from "./pages/Home";
+import ThreeLoader from "./components/ThreeLoader";
 
 /**
  * Design Philosophy: Minimalist Scientific Precision
@@ -36,14 +37,25 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
 }
 
 function App() {
+  const [isAppLoaded, setIsAppLoaded] = useState(false);
+
+  // When loading, we want to hide scrollbars to prevent scrolling down during the loader
+  const appStyle = isAppLoaded ? {} : { height: '100vh', overflow: 'hidden' };
+
   return (
     <ErrorBoundary>
       <ThemeProvider defaultTheme="dark">
         <TooltipProvider>
-          <Toaster />
-          <ScrollProgressBar />
-          <Navbar />
-          <Home />
+          {!isAppLoaded && (
+            <ThreeLoader onLoadComplete={() => setIsAppLoaded(true)} minDisplayTime={3500} />
+          )}
+          
+          <div style={appStyle}>
+            <Toaster />
+            <ScrollProgressBar />
+            <Navbar />
+            <Home />
+          </div>
         </TooltipProvider>
       </ThemeProvider>
     </ErrorBoundary>
