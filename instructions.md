@@ -65,23 +65,47 @@ pnpm add gsap
 
 **What it powers:**
 - `src/scenes/ScrollyStory.jsx` — the cinematic 3-scene scroll experience
-- Frame-by-frame scrubbing of 192 JPG frames across 3 scenes (scene1, scene2, scene3)
+- Frame-by-frame scrubbing of 190 JPG frames across 3 scenes (scene1, scene2, scene3)
 - Text beat animations with clip-path wipe reveals
-- Letterbox bars, film grain, and a scene progress indicator
+- Scene progress indicator
 
 **Frame assets required:**
 
-The frames are **not committed to Git** (too large). After cloning, place your frame folders here:
+The frames are committed to Git. After cloning they will be available at:
 
 ```
 public/
 └── frames/
-    ├── scene1/   ← 00001.jpg to 00192.jpg  (oil tanker at night)
-    ├── scene2/   ← 00001.jpg to 00192.jpg  (Sentinel-1 SAR satellite)
-    └── scene3/   ← 00001.jpg to 00192.jpg  (maritime control room)
+    ├── scene1/   ← frame_001.jpg to frame_190.jpg  (oil tanker at night)
+    ├── scene2/   ← frame_001.jpg to frame_190.jpg  (Sentinel-1 SAR satellite)
+    └── scene3/   ← frame_001.jpg to frame_190.jpg  (maritime control room)
 ```
 
-> Files must be **5-digit zero-padded** `.jpg` format: `00001.jpg`, `00002.jpg` … `00192.jpg`
+> Files use **3-digit zero-padded** `.jpg` format: `frame_001.jpg`, `frame_002.jpg` … `frame_190.jpg`
+
+---
+
+### Step 4.6 — Install Three.js (3D Hero Loading Animation)
+
+```bash
+pnpm add three @react-three/fiber @react-three/drei
+```
+
+> ⚠️ This is **required** for the animated 3D Earth + satellite loading sequence shown on initial page load. Without it, the `ThreeLoader` component will crash and the hero section will not render.
+
+**What it powers:**
+- `src/components/ThreeLoader.tsx` — the anime-styled 3D Earth and satellite loading screen
+- `@react-three/fiber` — React renderer for Three.js scenes
+- `@react-three/drei` — helpers (OrbitControls, useGLTF, Stars, etc.)
+- `three` — the core WebGL / 3D engine
+
+**Versions installed:**
+
+| Package | Version |
+|---|---|
+| `three` | `^0.184.0` |
+| `@react-three/fiber` | `^9.6.0` |
+| `@react-three/drei` | `^10.7.7` |
 
 ---
 
@@ -104,6 +128,7 @@ Open your browser and visit: **http://localhost:5173**
 | 3 | `pnpm install` | Install all project dependencies |
 | 4 | `pnpm add -D @tailwindcss/vite` | Install Tailwind v4 Vite plugin (styling) |
 | 4.5 | `pnpm add gsap` | Install GSAP for scrollytelling animations |
+| 4.6 | `pnpm add three @react-three/fiber @react-three/drei` | Install Three.js for the 3D hero loading screen |
 | 5 | `pnpm run dev` | Start the local dev server |
 
 ---
@@ -172,4 +197,5 @@ React-Mini-Project/
 - Always use `pnpm` for adding/removing packages (not `npm` or `yarn`).
 - The project uses **Tailwind CSS v4** which is CSS-first and does not require a `tailwind.config.js` or `postcss.config.js`.
 - **GSAP** (`gsap` package) must be installed separately with `pnpm add gsap` — it is not part of the base lockfile.
-- The **frame assets** (`public/frames/`) are not tracked in Git due to size. They must be copied manually after each fresh clone.
+- **Three.js** (`three`, `@react-three/fiber`, `@react-three/drei`) must be installed separately with `pnpm add three @react-three/fiber @react-three/drei` — required for the 3D loading screen.
+- The **frame assets** (`public/frames/`) are committed to Git (190 JPGs × 3 scenes). They will be present after a normal `git clone`.
